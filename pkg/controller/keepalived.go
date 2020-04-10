@@ -66,6 +66,7 @@ type keepalived struct {
 	proxyMode      bool
 	notify         string
 	releaseVips    bool
+	onlySelfNode   bool
 }
 
 // WriteCfg creates a new keepalived configuration file.
@@ -84,7 +85,6 @@ func (k *keepalived) WriteCfg(svcs []vip) error {
 	conf["iface"] = k.iface
 	conf["myIP"] = k.ip
 	conf["netmask"] = k.netmask
-	conf["svcs"] = svcs
 	conf["vips"] = k.vips
 	conf["nodes"] = k.neighbors
 	conf["priority"] = k.priority
@@ -94,6 +94,13 @@ func (k *keepalived) WriteCfg(svcs []vip) error {
 	conf["proxyMode"] = k.proxyMode
 	conf["vipIsEmpty"] = len(k.vips) == 0
 	conf["notify"] = k.notify
+
+	if k.onlySelfNode == false || k.checkMaster() {
+		conf["svcs"] = svcs
+	} else {
+		// onlySelfNode = true && checkMaster == false
+		conf["svcs"] = make([]interface{}, 0)
+	}
 
 	if glog.V(2) {
 		b, _ := json.Marshal(conf)
@@ -291,4 +298,18 @@ func (k *keepalived) loadTemplates() error {
 	k.haproxyTmpl = tmpl
 
 	return nil
+}
+
+func (k *keepalived) checkMaster() bool {
+	b, err := ioutil.ReadFile(keepalivedState)
+	if err != nil {
+		return false
+	}
+
+	master := false
+	state := strings.TrimSpace(string(b))
+	if strings.Contains(state, "MASTER") {
+		master = true
+	}
+	return master
 }

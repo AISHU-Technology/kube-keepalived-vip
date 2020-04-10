@@ -49,8 +49,7 @@ var (
 	watchNamespace = flags.String("watch-namespace", apiv1.NamespaceAll,
 		`Namespace to watch for Ingress. Default is to watch all namespaces`)
 
-	useUnicast = flags.Bool("use-unicast", false, `use unicast instead of multicast for communication
-		with other keepalived instances`)
+	useUnicast = flags.Bool("use-unicast", false, `use unicast instead of multicast for communication with other keepalived instances`)
 
 	configMapName = flags.String("services-configmap", "",
 		`Name of the ConfigMap that contains the definition of the services to expose.
@@ -87,6 +86,8 @@ var (
 
 	httpPort = flags.Int("http-port", 8080, `The HTTP port to use for health checks`)
 
+	onlySelfNode = flags.Bool("only-self-node", false, `only selft node's pod`)
+
 	releaseVips = flags.Bool("release-vips", true, `add --release-vips to keepalived args`)
 )
 
@@ -120,6 +121,9 @@ func main() {
 		glog.Fatalf("Error using VRID %d, only values between 0 and 255 are allowed.", vrid)
 	}
 
+	glog.Infof("useUnicast is %t", *useUnicast)
+	glog.Infof("onlySelfNode is %t", *onlySelfNode)
+
 	err := loadIPVModule()
 	if err != nil {
 		glog.Fatalf("unexpected error: %v", err)
@@ -139,7 +143,7 @@ func main() {
 	}
 
 	glog.Info("starting LVS configuration")
-	ipvsc := controller.NewIPVSController(kubeClient, *watchNamespace, *useUnicast, *configMapName, *vrid, *proxyMode, *iface, *httpPort, *releaseVips)
+	ipvsc := controller.NewIPVSController(kubeClient, *watchNamespace, *useUnicast, *configMapName, *vrid, *proxyMode, *iface, *httpPort, *onlySelfNode, *releaseVips)
 
 	// If kube-proxy running in ipvs mode
 	// Reset of IPVS lead to connection loss with API server

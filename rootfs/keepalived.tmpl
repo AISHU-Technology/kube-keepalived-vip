@@ -73,6 +73,7 @@ virtual_server {{ $svc.IP }} {{ $svc.Port }} {
   {{ range $j, $backend := $svc.Backends }}
   real_server {{ $backend.IP }} {{ $backend.Port }} {
     weight 1
+	notify_down "systemctl stop keepalived"
     TCP_CHECK {
       connect_port {{ $backend.Port }}
       connect_timeout 3

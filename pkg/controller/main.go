@@ -128,6 +128,10 @@ type ipvsControllerController struct {
 
 	httpPort int
 
+	onlySelfNode bool
+
+	nodeName string
+
 	ruMD5 string
 
 	// stopLock is used to enforce only a single call to Stop is active.
@@ -173,7 +177,9 @@ func (ipvsc *ipvsControllerController) getEndpoints(
 				continue
 			}
 			for _, epAddress := range ss.Addresses {
-				endpoints = append(endpoints, service{IP: epAddress.IP, Port: targetPort})
+				if ipvsc.onlySelfNode == false || ipvsc.nodeName == *epAddress.NodeName {
+					endpoints = append(endpoints, service{IP: epAddress.IP, Port: targetPort})
+				}
 			}
 		}
 	}
@@ -353,12 +359,13 @@ func (ipvsc *ipvsControllerController) Stop() error {
 }
 
 // NewIPVSController creates a new controller from the given config.
-func NewIPVSController(kubeClient *kubernetes.Clientset, namespace string, useUnicast bool, configMapName string, vrid int, proxyMode bool, iface string, httpPort int, releaseVips bool) *ipvsControllerController {
+func NewIPVSController(kubeClient *kubernetes.Clientset, namespace string, useUnicast bool, configMapName string, vrid int, proxyMode bool, iface string, httpPort int, onlySelfNode bool, releaseVips bool) *ipvsControllerController {
 	ipvsc := ipvsControllerController{
 		client:            kubeClient,
 		reloadRateLimiter: flowcontrol.NewTokenBucketRateLimiter(0.5, 1),
 		configMapName:     configMapName,
 		httpPort:          httpPort,
+		onlySelfNode:      onlySelfNode,
 		stopCh:            make(chan struct{}),
 	}
 
@@ -371,6 +378,8 @@ func NewIPVSController(kubeClient *kubernetes.Clientset, namespace string, useUn
 	if err != nil {
 		glog.Fatalf("Error getting %v: %v", podInfo.Name, err)
 	}
+
+	ipvsc.nodeName = pod.Spec.NodeName
 
 	selector := parseNodeSelector(pod.Spec.NodeSelector)
 	clusterNodes := getClusterNodesIP(kubeClient, selector)
@@ -392,18 +401,19 @@ func NewIPVSController(kubeClient *kubernetes.Clientset, namespace string, useUn
 	iptInterface := utiliptables.New(execer, dbus, utiliptables.ProtocolIpv4)
 
 	ipvsc.keepalived = &keepalived{
-		iface:       iface,
-		ip:          nodeInfo.ip,
-		netmask:     nodeInfo.netmask,
-		nodes:       clusterNodes,
-		neighbors:   neighbors,
-		priority:    getNodePriority(nodeInfo.ip, clusterNodes),
-		useUnicast:  useUnicast,
-		ipt:         iptInterface,
-		vrid:        vrid,
-		proxyMode:   proxyMode,
-		notify:     notify,
-		releaseVips: releaseVips,
+		iface:        iface,
+		ip:           nodeInfo.ip,
+		netmask:      nodeInfo.netmask,
+		nodes:        clusterNodes,
+		neighbors:    neighbors,
+		priority:     getNodePriority(nodeInfo.ip, clusterNodes),
+		useUnicast:   useUnicast,
+		ipt:          iptInterface,
+		vrid:         vrid,
+		proxyMode:    proxyMode,
+		notify:       notify,
+		releaseVips:  releaseVips,
+		onlySelfNode: onlySelfNode,
 	}
 
 	ipvsc.syncQueue = task.NewTaskQueue(ipvsc.sync)

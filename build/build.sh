@@ -46,10 +46,10 @@ clean-install \
 cd /tmp
 
 # download, verify and extract the source files
-get_src $SHA256 \
-  "https://github.com/acassen/keepalived/archive/v$VERSION.tar.gz"
+#get_src $SHA256 \
+#  "https://github.com/acassen/keepalived/archive/v$VERSION.tar.gz"
 
-cd keepalived-$VERSION
+cd /keepalived-$VERSION
 
 aclocal
 autoheader
